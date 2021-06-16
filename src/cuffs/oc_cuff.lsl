@@ -2,18 +2,12 @@
 /*
 This file is a part of OpenCollar.
 Copyright ©2021
-
-
 : Contributors :
-
 Aria (Tashia Redrose)
     * February 2021       -       Created oc_cuff
-
-
 et al.
 Licensed under the GPLv2. See LICENSE for full details.
 https://github.com/OpenCollarTeam/OpenCollar
-
 */
 list StrideOfList(list src, integer stride, integer start, integer end)
 {
@@ -270,7 +264,7 @@ SetParticles(integer link, key kID,key kTexture, float fMaxAge, float fGravity){
 
     if(kTexture=="" || kTexture=="def")kTexture="4cde01ac-4279-2742-71e1-47ff81cc3529";
     if(fMaxAge==0)fMaxAge=7.3;
-    if(llRound(fGravity) == -1) fGravity = -0.076;
+    if(llRound(fGravity) == -1) fGravity = -0.01;
     llLinkParticleSystem(link, [
 PSYS_SRC_PATTERN,PSYS_SRC_PATTERN_DROP,
 PSYS_PART_START_ALPHA,1,
@@ -278,7 +272,7 @@ PSYS_PART_START_SCALE,<0.075, 0.075, 0>,
 PSYS_PART_END_SCALE,<0.075,0.075,0>,
 PSYS_PART_MAX_AGE,fMaxAge,
 PSYS_SRC_BURST_PART_COUNT,1,
-PSYS_SRC_ACCEL,<0, 0, -0.076>,
+PSYS_SRC_ACCEL,<0, 0, -0.01>,
 PSYS_SRC_TEXTURE,kTexture,
 PSYS_SRC_TARGET_KEY,kID,
 PSYS_PART_FLAGS,PSYS_PART_FOLLOW_SRC_MASK|
@@ -321,13 +315,18 @@ string g_sCurrentPose="NONE";
 
 PosesMenu (key kAv, integer iAuth, integer iPage)
 {
+    if (iAuth ==500 )
+    {
     string sPrompt = "\n[OpenCollar Cuffs]\n> Poses selection\n\n* Current Pose: ";
-
+    llSay(0,(string)iAuth);
     sPrompt += g_sCurrentPose;
-
     list lButtons = g_lPoses;
-
     Dialog(kAv, sPrompt, lButtons, ["*STOP*", "BACK"], iPage, iAuth, "Cuffs~Poses");
+    }
+    else
+    {
+    string sPrompt = "\n[OpenCollar Cuffs]\n> Poses selection\n\n* Only your owner can access this menu! ";
+    }
 }
 
 
@@ -790,6 +789,7 @@ default
                                 } else if(sMsg == Checkbox(g_iCuffLocked, "Lock")){
                                     if(iAuth==CMD_OWNER){
                                         g_iCuffLocked=1-g_iCuffLocked;
+                                       // ToggleLock();
                                         Link("from_addon", LM_SETTING_SAVE, "occuffs_locked="+(string)g_iCuffLocked, "");
                                     }else Link("from_addon", NOTIFY, "0%NOACCESS% to toggling cuffs lock", kAv);
 
