@@ -2,18 +2,14 @@
 /*
 This file is a part of OpenCollar.
 Copyright ©2021
-
-
 : Contributors :
-
 Aria (Tashia Redrose)
-    * February 2021       -       Created oc_cuff_pose
-
-
+    * February 2021       -       Created oc_cuff
+Safra (Safra Nightly)
+    * June 2021           - added _pose fix
 et al.
 Licensed under the GPLv2. See LICENSE for full details.
 https://github.com/OpenCollarTeam/OpenCollar
-
 */
 list g_lDSRequests;
 key NULL=NULL_KEY;
@@ -222,12 +218,14 @@ default
             llMessageLinked(LINK_SET, 10, llDumpList2String(StrideOfList(g_lPoseMap, 6, 0,-1), "`"), sMsg+"^"+(string)kID);
         } else if(iNum == 500)
         {
+            Link("from_addon", LM_SETTING_SAVE, "occuffs_cmdlevel="+(string)iNum,"");
             integer index=llListFindList(g_lPoseMap, [sMsg]);
             g_sCurrentPose=sMsg;
             //llSay(0, "Pose Map scan - only start animation ("+sMsg+") = "+(string)index);
             if(index!=-1)StartCuffPose(llList2List(g_lPoseMap, index,index+5), (integer)((string)kID));
         } else if(iNum == 501)
         {
+            Link("from_addon", LM_SETTING_SAVE, "occuffs_cmdlevel="+(string)iNum,"");
             integer index=llListFindList(g_lPoseMap, [sMsg]);
             list lMap = llList2List(g_lPoseMap, index,index+5);
 
@@ -243,6 +241,12 @@ default
                 llStopAnimation(curAnim);
                 return;
             }
+            else if (iNum == 502 || iNum==503 )
+            {
+            Link("from_addon", LM_SETTING_SAVE, "occuffs_cmdlevel="+(string)iNum,"");
+            //llSay(0,"line 257 = " +(string)iNum);
+            }
+
             g_sCurrentPose = sMsg;
             StartCuffPose(lMap,TRUE);
         } else if(iNum == 505)
