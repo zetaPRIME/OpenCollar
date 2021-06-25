@@ -2,10 +2,7 @@
 /*
 This file is a part of OpenCollar.
 Copyright ©2021
-
-
 : Contributors :
-
 Aria (Tashia Redrose)
     *June 2020       -       Created oc_api
       * This implements some auth features, and acts as a API Bridge for addons and plugins
@@ -16,7 +13,6 @@ Felkami (Caraway Ohmai)
 et al.
 Licensed under the GPLv2. See LICENSE for full details.
 https://github.com/OpenCollarTeam/OpenCollar
-
 */
 list g_lOwner;
 list g_lTrust;
@@ -107,7 +103,7 @@ key g_kWearer;
 key g_kTry;
 integer g_iCurrentAuth;
 key g_kMenuUser;
-integer CalcAuth(key kID) {
+integer CalcAuth(key kID, integer iVerbose){
     string sID = (string)kID;
     // First check
     if(llGetListLength(g_lOwner) == 0 && kID==g_kWearer && llListFindList(g_lBlock,[sID])==-1)
@@ -118,18 +114,20 @@ integer CalcAuth(key kID) {
         if(llListFindList(g_lTrust,[sID])!=-1)return CMD_TRUSTED;
         if(g_kTempOwner == kID) return CMD_TRUSTED;
         if(kID==g_kWearer)return CMD_WEARER;
-
-        // group access and public access only apply to nearby avs/objects.
-        if(in_range(kID)){
-            if(g_kGroup!=NULL_KEY) {
+        if(in_range(kID) && iVerbose){
+            if(g_kGroup!=NULL_KEY){
                 if(llSameGroup(kID))return CMD_GROUP;
             }
         
-            if(g_iPublic) {
-              return CMD_EVERYONE;
-            }
+            if(g_iPublic)return CMD_EVERYONE;
+        } else if(!in_range(kID) && !iVerbose){
+            if(g_iPublic)return CMD_EVERYONE;
+        }else{
+            if(iVerbose)
+                llMessageLinked(LINK_SET, NOTIFY, "0%NOACCESS% because you are out of range", kID);
         }
     }
+        
     
     return CMD_NOACCESS;
 }
@@ -171,16 +169,13 @@ PrintAccess(key kID){
     //llSay(0, sFinal);
 }
 
-list g_lActiveListeners;
+integer g_iListener;
+integer g_iChatListener;
 DoListeners(){
-    integer i=0;
-    integer end = llGetListLength(g_lActiveListeners);
-    for(i=0;i<end;i++){
-        llListenRemove(llList2Integer(g_lActiveListeners, i));
-    }
-    
-    g_lActiveListeners = [llListen(g_iChannel, "","",""), llListen(0,"","",""),  llListen(g_iInterfaceChannel, "", "", "")];
-    
+    if (g_iListener) llListenRemove(g_iListener);
+    if (g_iChatListener) llListenRemove(g_iChatListener);
+    g_iListener = llListen(g_iChannel, "","","");
+    if (g_iChannel > 0) g_iChatListener = llListen(0,"","","");
 }
 integer g_iRunaway=TRUE;
 RunawayMenu(key kID, integer iAuth){
@@ -300,7 +295,8 @@ integer in_range(key kID){
     if(kID == g_kWearer)return TRUE;
     else{
         vector pos = llList2Vector(llGetObjectDetails(kID, [OBJECT_POS]),0);
-        return llVecDist(llGetPos(),pos) <= 20.0;
+        if(llVecDist(llGetPos(),pos) <=20.0)return TRUE;
+        else return FALSE;
     }
 }
 
@@ -467,6 +463,7 @@ state active
             g_iInterfaceChannel = (integer)("0x" + llGetSubString(g_kWearer,30,-1));
             if (g_iInterfaceChannel > 0) g_iInterfaceChannel = -g_iInterfaceChannel;
         }
+        llListen(g_iInterfaceChannel, "", "", "");
         DoListeners();
         
         llSetTimerEvent(15);
@@ -537,11 +534,11 @@ state active
         //if(iNum>=CMD_OWNER && iNum <= CMD_NOACCESS) llOwnerSay(llDumpList2String([iSender, iNum, sStr, kID], " ^ "));
         if(iNum == CMD_ZERO){
             if(sStr == "initialize")return;
-            integer iAuth = CalcAuth(kID);
+            integer iAuth = CalcAuth(kID, TRUE);
             //llOwnerSay( "{API} Calculate auth for "+(string)kID+"="+(string)iAuth+";"+sStr);
             llMessageLinked(LINK_SET, iAuth, sStr, kID);
         } else if(iNum == AUTH_REQUEST){
-            integer iAuth = CalcAuth(kID);
+            integer iAuth = CalcAuth(kID, FALSE);
             //llOwnerSay("{API} Calculate auth for "+(string)kID+"="+(string)iAuth+";"+sStr);
             llMessageLinked(LINK_SET, AUTH_REPLY, "AuthReply|"+(string)kID+"|"+(string)iAuth,sStr);
         } else if(iNum >= CMD_OWNER && iNum <= CMD_NOACCESS) UserCommand(iNum, sStr, kID);
