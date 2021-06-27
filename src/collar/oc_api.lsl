@@ -11,8 +11,11 @@ Aria (Tashia Redrose)
       * This implements some auth features, and acts as a API Bridge for addons and plugins
 Felkami (Caraway Ohmai)
     *Dec 2020        -       Fix: 457Switched optin from searching by string to list
-    
-    
+Medea (Medea Destiny)
+    *June 2021       -      *Fix issue #566  setgroup not clearing properly, 
+                            *Fix issue #562, #381, #495 allow owners to permit wearers to set trusted/block
+                            *Add interface channel to DoListeners() function so Highlander works again
+                            *Restored menuto function to interface channel for backwards compatibility
 et al.
 Licensed under the GPLv2. See LICENSE for full details.
 https://github.com/OpenCollarTeam/OpenCollar
@@ -107,7 +110,9 @@ key g_kWearer;
 key g_kTry;
 integer g_iCurrentAuth;
 key g_kMenuUser;
-integer CalcAuth(key kID, integer iVerbose){
+
+
+integer CalcAuth(key kID) {
     string sID = (string)kID;
     // First check
     if(llGetListLength(g_lOwner) == 0 && kID==g_kWearer && llListFindList(g_lBlock,[sID])==-1)
@@ -118,20 +123,18 @@ integer CalcAuth(key kID, integer iVerbose){
         if(llListFindList(g_lTrust,[sID])!=-1)return CMD_TRUSTED;
         if(g_kTempOwner == kID) return CMD_TRUSTED;
         if(kID==g_kWearer)return CMD_WEARER;
-        if(in_range(kID) && iVerbose){
-            if(g_kGroup!=NULL_KEY){
+
+        // group access and public access only apply to nearby avs/objects.
+        if(in_range(kID)){
+            if(g_kGroup!=NULL_KEY) {
                 if(llSameGroup(kID))return CMD_GROUP;
             }
         
-            if(g_iPublic)return CMD_EVERYONE;
-        } else if(!in_range(kID) && !iVerbose){
-            if(g_iPublic)return CMD_EVERYONE;
-        }else{
-            if(iVerbose)
-                llMessageLinked(LINK_SET, NOTIFY, "0%NOACCESS% because you are out of range", kID);
+            if(g_iPublic) {
+              return CMD_EVERYONE;
+            }
         }
     }
-        
     
     return CMD_NOACCESS;
 }
@@ -172,18 +175,19 @@ PrintAccess(key kID){
     llMessageLinked(LINK_SET,NOTIFY, "0"+sFinal,kID);
     //llSay(0, sFinal);
 }
-
-list g_lActiveListeners;
+//Begin Romka's fix
+integer g_iListener;
+integer g_iChatListener;
+integer g_iInterfaceListener;
 DoListeners(){
-    integer i=0;
-    integer end = llGetListLength(g_lActiveListeners);
-    for(i=0;i<end;i++){
-        llListenRemove(llList2Integer(g_lActiveListeners, i));
-    }
-    
-    g_lActiveListeners = [llListen(g_iChannel, "","",""), llListen(0,"","",""),  llListen(g_iInterfaceChannel, "", "", "")];
-    
+    if (g_iListener) llListenRemove(g_iListener);
+    if (g_iChatListener) llListenRemove(g_iChatListener);
+    if (g_iInterfaceListener) llListenRemove(g_iInterfaceListener);
+    g_iInterfaceListener = llListen(g_iInterfaceChannel,"","","");
+    g_iListener = llListen(g_iChannel, "","","");
+    if (g_iChannel > 0) g_iChatListener = llListen(0,"","","");
 }
+//End Romka's Channel 0 fix setting Negative channel to turn off channel 0 commands
 integer g_iRunaway=TRUE;
 RunawayMenu(key kID, integer iAuth){
     if(iAuth == CMD_OWNER || iAuth==CMD_WEARER){
@@ -214,7 +218,7 @@ WearerConfirmListUpdate(key kID, string sReason)
     // This should only be triggered if the wearer is being affected by a sensitive action
     Dialog(g_kWearer, "\n[Access]\n\nsecondlife:///app/agent/"+(string)kID+"/about wants change your access level.\n\nChange that will occur: "+sReason+"\n\nYou may grant or deny this action.", [], ["Allow", "Disallow"], 0, CMD_WEARER, "WearerConfirmation");
 }
-
+integer g_iAllowWearerSetTrusted=FALSE;
 integer g_iGrantedConsent=FALSE;
 integer g_iRunawayMode = -1;
 UpdateLists(key kID, key kIssuer){
@@ -302,8 +306,7 @@ integer in_range(key kID){
     if(kID == g_kWearer)return TRUE;
     else{
         vector pos = llList2Vector(llGetObjectDetails(kID, [OBJECT_POS]),0);
-        if(llVecDist(llGetPos(),pos) <=20.0)return TRUE;
-        else return FALSE;
+        return llVecDist(llGetPos(),pos) <= 20.0;
     }
 }
 
@@ -325,25 +328,26 @@ UserCommand(integer iAuth, string sCmd, key kID){
         RunawayMenu(kID,iAuth);
     }
     
-    if(iAuth == CMD_OWNER){
-        if(sCmd == "safeword-disable")g_iSafewordDisable=TRUE;
-        else if(sCmd == "safeword-enable")g_iSafewordDisable=FALSE;
-            
+    if(iAuth == CMD_OWNER || (iAuth==CMD_WEARER && g_iAllowWearerSetTrusted==TRUE) ){
+          
         list lCmd = llParseString2List(sCmd, [" "],[]);
         string sCmdx = llToLower(llList2String(lCmd,0));
-                
-        if(sCmdx == "channel"){
-            g_iChannel = (integer)llList2String(lCmd,1);
-            llMessageLinked(LINK_SET, LM_SETTING_SAVE, "global_channel="+(string)g_iChannel, kID);
+        if(iAuth==CMD_OWNER){
+            if(sCmd == "safeword-disable")g_iSafewordDisable=TRUE;
+            else if(sCmd == "safeword-enable")g_iSafewordDisable=FALSE;        
+            if(sCmdx == "channel"){
+                g_iChannel = (integer)llList2String(lCmd,1);
+                llMessageLinked(LINK_SET, LM_SETTING_SAVE, "global_channel="+(string)g_iChannel, kID);
         
-        } else if(sCmdx == "prefix"){
-            if(llList2String(lCmd,1)==""){
-                llMessageLinked(LINK_SET,NOTIFY,"0The prefix is currently set to: "+g_sPrefix+". If you wish to change it, supply the new prefix to this same command", kID);
-                return;
+            } else if(sCmdx == "prefix"){
+                if(llList2String(lCmd,1)==""){
+                    llMessageLinked(LINK_SET,NOTIFY,"0The prefix is currently set to: "+g_sPrefix+". If you wish to change it, supply the new prefix to this same command", kID);
+                    return;
+                }
+                g_sPrefix = llList2String(lCmd,1);
+                llMessageLinked(LINK_SET, LM_SETTING_SAVE, "global_prefix="+g_sPrefix,kID);
             }
-            g_sPrefix = llList2String(lCmd,1);
-            llMessageLinked(LINK_SET, LM_SETTING_SAVE, "global_prefix="+g_sPrefix,kID);
-        } else if(sCmdx == "add" || sCmdx == "rem"){
+        } else if(sCmdx == "add" || sCmdx == "rem" ){
             string sType = llToLower(llList2String(lCmd,1));
             string sID;
             if(llGetListLength(lCmd)==3) sID = llList2String(lCmd,2);
@@ -353,7 +357,7 @@ UserCommand(integer iAuth, string sCmd, key kID){
             if(sCmdx=="add")
                 g_iMode = ACTION_ADD;
             else g_iMode=ACTION_REM;
-            if(sType == "owner")g_iMode = g_iMode|ACTION_OWNER;
+            if(sType == "owner" && iAuth==CMD_OWNER)g_iMode = g_iMode|ACTION_OWNER;
             else if(sType == "trust")g_iMode = g_iMode|ACTION_TRUST;
             else if(sType == "block")g_iMode=g_iMode|ACTION_BLOCK;
             else return; // Invalid, don't continue
@@ -498,7 +502,7 @@ state active
     }
     
     listen(integer c,string n,key i,string m){
-        if(c == g_iInterfaceChannel){
+        if(c == g_iInterfaceChannel && llGetOwnerKey(i)==g_kWearer){
             //do nothing if wearer isnt owner of the object
             if (llGetOwnerKey(i) != g_kWearer) return;
             //play ping pong with the Sub AO
@@ -509,6 +513,11 @@ state active
             } else if (m == "There can be only one!" ) {
                 llOwnerSay("/me has been detached.");
                 llRequestPermissions(g_kWearer,PERMISSION_ATTACH);
+            }
+            else if(llToLower(llGetSubString(m,0,5))=="menuto")    {
+                m=llStringTrim(llGetSubString(m,6,-1),STRING_TRIM);
+                if(llGetAgentSize((key)m)) llMessageLinked(LINK_SET,0,"menu",m);
+                return;
             }
         }
             
@@ -540,11 +549,11 @@ state active
         //if(iNum>=CMD_OWNER && iNum <= CMD_NOACCESS) llOwnerSay(llDumpList2String([iSender, iNum, sStr, kID], " ^ "));
         if(iNum == CMD_ZERO){
             if(sStr == "initialize")return;
-            integer iAuth = CalcAuth(kID, TRUE);
+            integer iAuth = CalcAuth(kID);
             //llOwnerSay( "{API} Calculate auth for "+(string)kID+"="+(string)iAuth+";"+sStr);
             llMessageLinked(LINK_SET, iAuth, sStr, kID);
         } else if(iNum == AUTH_REQUEST){
-            integer iAuth = CalcAuth(kID, FALSE);
+            integer iAuth = CalcAuth(kID);
             //llOwnerSay("{API} Calculate auth for "+(string)kID+"="+(string)iAuth+";"+sStr);
             llMessageLinked(LINK_SET, AUTH_REPLY, "AuthReply|"+(string)kID+"|"+(string)iAuth,sStr);
         } else if(iNum >= CMD_OWNER && iNum <= CMD_NOACCESS) UserCommand(iNum, sStr, kID);
@@ -575,7 +584,7 @@ state active
                     if(sVal == (string)NULL_KEY)sVal="";
                     g_kGroup = (key)sVal;
                     
-                    if(g_kGroup!=NULL_KEY)
+                    if(g_kGroup!="")
                         llOwnerSay("@setgroup:"+(string)g_kGroup+"=force,setgroup=n");
                     else llOwnerSay("@setgroup=y");
                 } else if(sVar == "limitrange"){
@@ -584,6 +593,8 @@ state active
                     g_kTempOwner = (key)sVal;
                 } else if(sVar == "runaway"){
                     g_iRunaway=(integer)sVal;
+                } else if(sVar == "wearertrust"){
+                    g_iAllowWearerSetTrusted=(integer)sVal;
                 }
             } else if(sToken == "global"){
                 if(sVar == "channel"){
@@ -642,6 +653,8 @@ state active
                     g_kTempOwner = "";
                 } else if(sVar == "runaway"){
                     g_iRunaway=TRUE;
+                } else if(sVar == "wearertrust"){
+                    g_iAllowWearerSetTrusted=FALSE; 
                 }
             } else if(sToken == "global"){
                 if(sVar == "channel"){
