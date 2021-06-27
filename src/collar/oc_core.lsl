@@ -8,6 +8,18 @@ Aria (Tashia Redrose)
       * This combines oc_com, oc_auth, and oc_sys
     * July 2020     -       Maintenance fixes, feature implementations
 et al.
+
+Medea (Medea Destiny)
+    *June 2020      -      *Fix issue #562, #381, #495 allow owners to permit wearers to set trusted/block.
+                            -   added Wearer Trust option to Access Menu so that owners may allow or forbid
+                                wearer from adding/removing to trusted and block lists
+                            -   Moved Limit Range to Settings menu to make room in Access menu for above,
+                                as it seems logical to have this as a global setting. 
+                            *Added explanatory text to settings menu prompt and access prompt,
+                            *Added safword to help/about prompt. 
+                            *Fix issue #566, clear @setgroup when group unchecked properly.
+                            *Disallow setting group access when no group active.  
+
 Licensed under the GPLv2. See LICENSE for full details.
 https://github.com/OpenCollarTeam/OpenCollar
 */
@@ -82,6 +94,8 @@ string UPMENU = "BACK";
 string g_sLockSound="dec9fb53-0fef-29ae-a21d-b3047525d312";
 string g_sUnlockSound="82fa6d06-b494-f97c-2908-84009380c8d1";
 
+
+
 key g_kWeldBy;
 list g_lMainMenu=["Apps", "Access", "Settings", "Help/About"];
 
@@ -96,8 +110,8 @@ Dialog(key kID, string sPrompt, list lChoices, list lUtilityButtons, integer iPa
 integer g_iHide=FALSE;
 integer g_iAllowHide=TRUE;
 Settings(key kID, integer iAuth){
-    string sPrompt = "OpenCollar\n\n[Settings]\n\nEditor - Interactive Settings Editor";
-    list lButtons = ["Print", "Load", "Fix Menus"];
+    string sPrompt = "OpenCollar\n\n[Settings]\n\nEditor - Interactive Settings Editor\n'Print' lists settings in chat, 'Load' reloads setting from notecard. Use 'Fix Menus' if menus are missing. 'EDITOR' allows manual editing of settings. 'Limit Range' to ignore clicks from distant users.";
+    list lButtons = [Checkbox(g_iLimitRange, "Limit Range"),"Print", "Load", "Fix Menus"];
     if (llGetInventoryType("oc_resizer") == INVENTORY_SCRIPT) lButtons += ["Resize"];
     else lButtons += ["-"];
     lButtons += [Checkbox(g_iHide, "Hide"), "EDITOR", Checkbox(g_iAllowHide, "AllowHiding"), "Addon.."];
@@ -143,16 +157,17 @@ key g_kGroup = "";
 integer g_iLimitRange=TRUE;
 integer g_iPublic=FALSE;
 integer g_iCaptured = FALSE;
+integer g_iAllowWearerSetTrusted=FALSE;
 AccessMenu(key kID, integer iAuth){
     if(g_iCaptured){
         llMessageLinked(LINK_SET, NOTIFY, "0%NOACCESS% to the access settings while capture is active!", kID);
         llMessageLinked(LINK_SET, 0, "menu", kID);
         return;
     }
-    string sPrompt = "\nOpenCollar Access Controls";
+    string sPrompt = "\nOpenCollar Access Controls\n+/- buttons to control access lists.\nGroup allows access to current group, Public allows access to all. Wearer trust allows an owned wearer to add/remove from trusted list.\nRunaway removes all owners, access list prints out who has access.";
     list lButtons = ["+ Owner", "+ Trust", "+ Block", "- Owner", "- Trust", "- Block", Checkbox(bool((g_kGroup!="")), "Group"), Checkbox(g_iPublic, "Public")];
 
-    lButtons += [Checkbox(g_iLimitRange, "Limit Range"), "Runaway", "Access List"];
+    lButtons += [Checkbox(g_iAllowWearerSetTrusted, "Wearer Trust"), "Runaway", "Access List"];
     Dialog(kID, sPrompt, lButtons, [UPMENU], 0, iAuth, "Menu~Auth");
 }
 
@@ -164,7 +179,7 @@ HelpMenu(key kID, integer iAuth){
     string sPrompt = "\nOpenCollar "+COLLAR_VERSION+" "+EXTRA_VER_TXT+"\nVersion: "+setor(g_iAmNewer, "(Newer than release)", "")+" "+setor(UPDATE_AVAILABLE, "(Update Available)", "(Most Current Version)");
     sPrompt += "\n\nDocumentation https://opencollar.cc";
     sPrompt += "\nPrefix: "+g_sPrefix+"\nChannel: "+(string)g_iChannel;
-
+    sPrompt += "\nSafeword: "+g_sSafeword;
     if(g_iNotifyInfo){
         g_iNotifyInfo=FALSE;
         llMessageLinked(LINK_SET, NOTIFY, sPrompt, kID);
@@ -529,14 +544,14 @@ state active
                         iRespring=FALSE;
                         Menu(kAv,iAuth);
                     } else if(llGetSubString(sMsg,0,0) == "+"){
-                        if(iAuth == CMD_OWNER){
+                        if(iAuth == CMD_OWNER || (iAuth==CMD_WEARER && (sMsg=="+ Trust"||sMsg=="+ Block") && g_iAllowWearerSetTrusted==TRUE) ){
                             iRespring=FALSE;
                             llMessageLinked(LINK_SET, iAuth, "add "+llToLower(llGetSubString(sMsg,2,-1)), kAv);
                         }
                         else
                             llMessageLinked(LINK_SET, NOTIFY, "0%NOACCESS% to adding a person", kAv);
                     } else if(llGetSubString(sMsg,0,0)=="-"){
-                        if(iAuth == CMD_OWNER){
+                        if(iAuth == CMD_OWNER || (iAuth==CMD_WEARER && (sMsg=="- Trust"||sMsg=="-Block") && g_iAllowWearerSetTrusted==TRUE) ){
                             iRespring=FALSE;
                             llMessageLinked(LINK_SET, iAuth, "rem "+llToLower(llGetSubString(sMsg,2,-1)), kAv);
                         } else llMessageLinked(LINK_SET, NOTIFY, "0%NOACCESS% to removing a person", kAv);
@@ -549,8 +564,14 @@ state active
                                 g_kGroup="";
                                 llMessageLinked(LINK_SET, LM_SETTING_DELETE, "auth_group", "origin");
                             }else{
-                                g_kGroup = llList2Key(llGetObjectDetails(llGetKey(), [OBJECT_GROUP]),0);
-                                llMessageLinked(LINK_SET, LM_SETTING_SAVE, "auth_group="+(string)g_kGroup, "origin");
+                                key t_kGroup = llList2Key(llGetObjectDetails(llGetKey(), [OBJECT_GROUP]),0);
+                                if(t_kGroup==NULL_KEY){
+                                     llMessageLinked(LINK_SET, NOTIFY,"Group access can't be set while no group is active.",kAv);
+                                }
+                                else{
+                                    g_kGroup=t_kGroup;
+                                     llMessageLinked(LINK_SET, LM_SETTING_SAVE, "auth_group="+(string)g_kGroup, "origin");
+                                }
                             }
                         } else {
                             llMessageLinked(LINK_SET, NOTIFY, "0%NOACCESS% to changing group access", kAv);
@@ -566,7 +587,24 @@ state active
                         } else {
                             llMessageLinked(LINK_SET, NOTIFY, "0%NOACCESS% to changing public", kAv);
                         }
-                    } else if(sMsg == Checkbox(g_iLimitRange, "Limit Range")){
+                    } else if(sMsg == "Runaway"){
+                        llMessageLinked(LINK_SET,0,"menu runaway", kAv);
+                        iRespring=FALSE;
+                    }
+                    else if(sMsg == Checkbox(g_iAllowWearerSetTrusted, "Wearer Trust")){
+                        if(iAuth==CMD_OWNER){
+                            g_iAllowWearerSetTrusted=!g_iAllowWearerSetTrusted;
+                            if(g_iAllowWearerSetTrusted) llMessageLinked(LINK_SET, LM_SETTING_SAVE,"auth_wearertrust=1", "origin");
+                            else llMessageLinked(LINK_SET, LM_SETTING_DELETE,"auth_wearertrust","origin");
+                        }
+                        else llMessageLinked(LINK_SET, NOTIFY, "0%NOACCESS% to allowing wearer control of trusted/blocklist",kAv);
+                    }
+                    if(iRespring)AccessMenu(kAv,iAuth);
+                } else if(sMenu == "Menu~Settings"){
+                    if(sMsg == UPMENU){
+                        iRespring=FALSE;
+                        Menu(kAv, iAuth);
+                    }  else if(sMsg == Checkbox(g_iLimitRange, "Limit Range")){
                         if(iAuth >=CMD_OWNER && iAuth <= CMD_TRUSTED){
                             g_iLimitRange=1-g_iLimitRange;
 
@@ -575,17 +613,6 @@ state active
                         } else {
                             llMessageLinked(LINK_SET, NOTIFY, "0%NOACCESS% to changing range limit", kAv);
                         }
-                    } else if(sMsg == "Runaway"){
-                        llMessageLinked(LINK_SET,0,"menu runaway", kAv);
-                        iRespring=FALSE;
-                    }
-
-
-                    if(iRespring)AccessMenu(kAv,iAuth);
-                } else if(sMenu == "Menu~Settings"){
-                    if(sMsg == UPMENU){
-                        iRespring=FALSE;
-                        Menu(kAv, iAuth);
                     } else if(sMsg == "Print"){
                         llMessageLinked(LINK_SET, iAuth, "print settings", kAv);
                     } else if(sMsg == "Fix Menus"){
@@ -737,6 +764,8 @@ state active
                     g_iPublic = (integer)sVal;
                 } else if(sVar == "limitrange"){
                     g_iLimitRange=(integer)sVal;
+                } else if(sVar == "wearertrust"){
+                    g_iAllowWearerSetTrusted=(integer)sVal;
                 }
             } else if(sToken == "intern"){
                 if(sVar == "weld"){
@@ -792,6 +821,7 @@ state active
                 }
                 else if(sVar == "public")g_iPublic=FALSE;
                 else if(sVar == "limitrange")g_iLimitRange=TRUE;
+                else if(sVar == "wearertrust") g_iAllowWearerSetTrusted=FALSE;
             } else if(sToken == "intern"){
                 if(sVar == "weld"){
                     g_iWelded=FALSE;
