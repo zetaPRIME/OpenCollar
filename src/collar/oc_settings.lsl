@@ -6,7 +6,10 @@ Copyright ©2021
 
 : Contributors :
 All contributors of previous revision of oc_settings
-
+Medea (medea.destiny) 
+    June 2021       -       *Added warning text to settings dump to clarify purpose and warn
+                             against putting bookmarks in .settings rather than .bookmarks.
+                            (see issue #577)
 et al.
 Licensed under the GPLv2. See LICENSE for full details.
 https://github.com/OpenCollarTeam/OpenCollar
@@ -146,7 +149,7 @@ Dialog(key kID, string sPrompt, list lChoices, list lUtilityButtons, integer iPa
 PrintAll(key kID, string sExtra){
     integer i=0;
     integer end = llGetListLength(g_lSettings);
-    llMessageLinked(LINK_SET, NOTIFY, "0OpenCollar Settings: ",kID);
+    llMessageLinked(LINK_SET, NOTIFY, "0OpenCollar Settings: \n(These settings can be dumped to your "+g_sSettings+" notecard to set permanently, but note that any values stored in .settings will be reloaded and are not permanently removed if changed via collar menus, so take care. Bookmark settings should be placed in the .bookmarks notecard, NOT the "+g_sSettings+" notecard.",kID);
     //llMessageLinked(LINK_SET, NOTIFY, "0settings=nocomma~1", kID);
     string sBuffer = "settings=nocomma~1";
     for(i=0;i<end;i+=2){
