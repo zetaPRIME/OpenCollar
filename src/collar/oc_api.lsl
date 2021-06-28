@@ -14,8 +14,10 @@ Felkami (Caraway Ohmai)
 Medea (Medea Destiny)
     *June 2021       -      *Fix issue #566  setgroup not clearing properly, 
                             *Fix issue #562, #381, #495 allow owners to permit wearers to set trusted/block
-                            *Add interface channel to DoListeners() function so Highlander works again
-                            *Restored menuto function to interface channel for backwards compatibility
+                            *isse #579 Add interface channel to DoListeners() function so Highlander works again
+                            *Issue #579 Restored menuto function to interface channel for backwards compatibility
+                            *Issue #579 Added control of channel 0 listening via settings menu
+                            
 et al.
 Licensed under the GPLv2. See LICENSE for full details.
 https://github.com/OpenCollarTeam/OpenCollar
@@ -147,6 +149,7 @@ integer NOTIFY_OWNERS=1003;
 integer g_iPublic;
 string g_sPrefix;
 integer g_iChannel=1;
+integer g_iListenPublic=TRUE;
 
 PrintAccess(key kID){
     string sFinal = "\n \nAccess List:\nOwners:";
@@ -178,12 +181,12 @@ PrintAccess(key kID){
 //Begin Romka's fix
 integer g_iListener;
 integer g_iChatListener;
-integer g_iInterfaceListener;
+
 DoListeners(){
     if (g_iListener) llListenRemove(g_iListener);
     if (g_iChatListener) llListenRemove(g_iChatListener);
     g_iListener = llListen(g_iChannel, "","","");
-    if (g_iChannel > 0) g_iChatListener = llListen(0,"","","");
+    if (g_iListenPublic) g_iChatListener = llListen(0,"","","");
 }
 //End Romka's Channel 0 fix setting Negative channel to turn off channel 0 commands
 integer g_iRunaway=TRUE;
@@ -472,7 +475,7 @@ state active
             g_iInterfaceChannel = (integer)("0x" + llGetSubString(g_kWearer,30,-1));
             if (g_iInterfaceChannel > 0) g_iInterfaceChannel = -g_iInterfaceChannel;
         }
-        llListen(g_iInterfaceChannel,"","","");
+        llListen(g_iChannel, "","","");
         llRegionSayTo(g_kWearer, g_iInterfaceChannel, "OpenCollar=Yes");
         DoListeners();
         
@@ -606,6 +609,9 @@ state active
                     g_sSafeword = sVal;
                 } else if(sVar == "safeworddisable"){
                     g_iSafewordDisable=1;
+                } else if(sVar=="listen0"){
+                    g_iListenPublic = (integer)sVal;
+                    DoListeners();
                 }
             }
             
