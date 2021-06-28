@@ -182,8 +182,6 @@ integer g_iInterfaceListener;
 DoListeners(){
     if (g_iListener) llListenRemove(g_iListener);
     if (g_iChatListener) llListenRemove(g_iChatListener);
-    if (g_iInterfaceListener) llListenRemove(g_iInterfaceListener);
-    g_iInterfaceListener = llListen(g_iInterfaceChannel,"","","");
     g_iListener = llListen(g_iChannel, "","","");
     if (g_iChannel > 0) g_iChatListener = llListen(0,"","","");
 }
@@ -474,6 +472,7 @@ state active
             g_iInterfaceChannel = (integer)("0x" + llGetSubString(g_kWearer,30,-1));
             if (g_iInterfaceChannel > 0) g_iInterfaceChannel = -g_iInterfaceChannel;
         }
+        llListen(g_iInterfaceChannel,"","","");
         llRegionSayTo(g_kWearer, g_iInterfaceChannel, "OpenCollar=Yes");
         DoListeners();
         
