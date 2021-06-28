@@ -18,8 +18,10 @@ Medea (Medea Destiny)
                             *Added explanatory text to settings menu prompt and access prompt,
                             *Added safword to help/about prompt. 
                             *Fix issue #566, clear @setgroup when group unchecked properly.
-                            *Disallow setting group access when no group active.  
-
+                            *Extention to above, Disallow setting group access when no group active.  
+                            *Fix issue #580 Limited printing settings to owner and wearer
+                            *#579 Added 'Limit 0' button to Settings menu that allows toggling channel 0 command listener on and off.  
+  
 Licensed under the GPLv2. See LICENSE for full details.
 https://github.com/OpenCollarTeam/OpenCollar
 */
@@ -94,7 +96,7 @@ string UPMENU = "BACK";
 string g_sLockSound="dec9fb53-0fef-29ae-a21d-b3047525d312";
 string g_sUnlockSound="82fa6d06-b494-f97c-2908-84009380c8d1";
 
-
+integer g_iListenPublic=TRUE;
 
 key g_kWeldBy;
 list g_lMainMenu=["Apps", "Access", "Settings", "Help/About"];
@@ -110,8 +112,8 @@ Dialog(key kID, string sPrompt, list lChoices, list lUtilityButtons, integer iPa
 integer g_iHide=FALSE;
 integer g_iAllowHide=TRUE;
 Settings(key kID, integer iAuth){
-    string sPrompt = "OpenCollar\n\n[Settings]\n\nEditor - Interactive Settings Editor\n'Print' lists settings in chat, 'Load' reloads setting from notecard. Use 'Fix Menus' if menus are missing. 'EDITOR' allows manual editing of settings. 'Limit Range' to ignore clicks from distant users.";
-    list lButtons = [Checkbox(g_iLimitRange, "Limit Range"),"Print", "Load", "Fix Menus"];
+    string sPrompt = "OpenCollar\n\n[Settings]\n\n'Print' lists settings in chat, 'Load' reloads setting from notecard. Use 'Fix Menus' if menus are missing. 'EDITOR' allows manual editing of settings. 'Limit Range' to ignore clicks from distant users. 'Listen 0' controls whether the collar will hear commands in local chat.";
+    list lButtons = [Checkbox(g_iListenPublic,"Listen 0"),Checkbox(g_iLimitRange, "Limit Range"),"Print", "Load", "Fix Menus"];
     if (llGetInventoryType("oc_resizer") == INVENTORY_SCRIPT) lButtons += ["Resize"];
     else lButtons += ["-"];
     lButtons += [Checkbox(g_iHide, "Hide"), "EDITOR", Checkbox(g_iAllowHide, "AllowHiding"), "Addon.."];
@@ -613,8 +615,15 @@ state active
                         } else {
                             llMessageLinked(LINK_SET, NOTIFY, "0%NOACCESS% to changing range limit", kAv);
                         }
+                    }else if (sMsg==Checkbox(g_iListenPublic,"Listen 0")){
+                        if(iAuth ==CMD_OWNER){
+                            g_iListenPublic=!g_iListenPublic;
+                            llMessageLinked(LINK_SET,LM_SETTING_SAVE,"global_listen0="+(string)g_iListenPublic,"origin");
+                            }else{
+                                llMessageLinked(LINK_SET,NOTIFY,"0%NOACCESS% to changing policy on listening to local chat for collar commands.",kAv);}
                     } else if(sMsg == "Print"){
-                        llMessageLinked(LINK_SET, iAuth, "print settings", kAv);
+                         if(iAuth==CMD_OWNER || iAuth==CMD_WEARER) llMessageLinked(LINK_SET, iAuth, "print settings", kAv);
+                         else llMessageLinked(LINK_SET,NOTIFY,"0%NOACCESS% to reading settings.",kAv);
                     } else if(sMsg == "Fix Menus"){
                         llMessageLinked(LINK_SET, iAuth, "fix", kAv);
                         llMessageLinked(LINK_SET, NOTIFY, "0Menus have been fixed", kAv);
@@ -755,6 +764,8 @@ state active
                     g_iAddons = (integer)sVal;
                 } else if(sVar=="verbosity"){
                     g_iVerbosityLevel=(integer)sVal;
+                } else if (sVar=="listen0"){
+                    g_iListenPublic=(integer)sVal;
                 }
             } else if(sToken == "auth"){
                 if(sVar == "group"){
