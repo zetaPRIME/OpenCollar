@@ -18,6 +18,7 @@ Medea (Medea Destiny)
                             *Issue #579 Restored menuto function to interface channel for backwards compatibility
                             *Issue #579 Added control of channel 0 listening via settings menu
                             *Fix issue 585 give wearer accept/deny dialog to confirm runaway disable setting
+                            
 et al.
 Licensed under the GPLv2. See LICENSE for full details.
 https://github.com/OpenCollarTeam/OpenCollar
